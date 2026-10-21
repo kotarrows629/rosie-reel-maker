@@ -41,3 +41,27 @@ npm run preview
 `npm test` は秒数境界、並べ替え、秒数入力、複数取り込み、再生・停止・再開、削除と読み込み失敗時のURL解放を検証します。画像デコードとアニメーションフレームはテスト用に置き換えています。
 
 iPhone実機での確認項目：写真ライブラリからの複数選択、HEIC/JPEGの表示、タッチでの並べ替え、秒数入力、画面ロックからの復帰、縦横回転、9:16表示。自動テストは実機検証の代わりにはなりません。
+
+## GitHub Pagesで公開する
+
+公開リポジトリのGitHub Pagesと標準のGitHubホストランナーを使用するため、この構成は無料で利用できます。独自サーバー・有料サービス・デプロイ用の個人アクセストークンは不要です。
+
+### GitHub側で初回に行う操作
+
+1. リポジトリの **Settings → Pages → Build and deployment → Source** で **GitHub Actions** を選択します。
+2. **Actions** が無効な場合は有効にします。組織等で制限がある場合は、このワークフローで使用する公式Actionsを許可します。
+3. プルリクエスト #1の変更と **Build and test** の成功を確認し、公開してよいと判断した時点で自分でmainへマージします。PRへのpushだけでは公開されません。
+4. **Actions → Deploy to GitHub Pages** のbuildとdeployが成功するまで待ちます。環境の承認が表示された場合は内容を確認して承認します。
+5. Settings → Pagesの公開URL、またはデプロイのenvironmentリンクを開きます。
+
+公開成功後にiPhoneのSafariで開くURL：
+
+https://kotarrows629.github.io/rosie-reel-maker/
+
+このURLは公開先の予定URLです。初回デプロイが完了するまでは404になる場合があります。
+
+以後mainへのpushでテスト・ビルド後に自動デプロイされます。必要なら **Actions → Deploy to GitHub Pages → Run workflow → Branch: main** で再実行できます。手動実行でもmain以外のブランチは公開しません。失敗した場合はActionsの赤くなったステップを確認してください。
+
+Viteの `base` は `/rosie-reel-maker/` に固定しています。開発サーバー・`npm run preview` でもこのパスを開いてください。リポジトリ名や公開パスを変える場合は `vite.config.ts` のbaseも変更します。
+
+公開するのはビルド済みのアプリだけです。選択した写真はGitHub Pages・GitHub Actionsを含むサーバーへ送信せず、引き続きブラウザ内だけで扱います。動画の選択とMP4出力は未対応です。
