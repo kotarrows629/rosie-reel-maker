@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import App from './App'
 import { movePhoto, photoAt, totalDuration, validDuration, type Photo } from './timeline'
+vi.mock('./ExportPanel', () => ({ default: () => null }))
 const photos: Photo[] = [1, 2, 3].map(n => ({ id: String(n), name: `${n}.jpg`, url: `blob:${n}`, duration: n }))
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 describe('タイムライン', () => {
@@ -29,13 +30,13 @@ describe('写真編集と再生', () => {
     fireEvent.change(screen.getByLabelText('写真を追加する'), { target: { files: [new File(['a'], 'a.jpg', { type: 'image/jpeg' }), new File(['b'], 'b.jpg', { type: 'image/jpeg' })] } })
     await waitFor(() => expect(screen.getAllByLabelText('表示秒数').length).toBe(2))
   }
-  it('複数写真を3秒で追加し、並べ替え・秒数変更・削除できる', async () => {
+  it('複数写真を1.5秒で追加し、並べ替え・秒数変更・削除できる', async () => {
     await upload()
-    expect((screen.getAllByLabelText('表示秒数')[0] as HTMLInputElement).value).toBe('3')
+    expect((screen.getAllByLabelText('表示秒数')[0] as HTMLInputElement).value).toBe('1.5')
     fireEvent.click(screen.getByLabelText('写真2を前へ'))
     expect(screen.getByAltText('プレビュー：b.jpg')).toBeTruthy()
-    fireEvent.change(screen.getAllByLabelText('表示秒数')[0], { target: { value: '1.5' } })
-    expect(screen.getByText('2枚 · 4.5秒')).toBeTruthy()
+    fireEvent.change(screen.getAllByLabelText('表示秒数')[0], { target: { value: '2' } })
+    expect(screen.getByText('2枚 · 3.5秒')).toBeTruthy()
     fireEvent.click(screen.getByLabelText('写真1を削除'))
     expect(screen.getByAltText('プレビュー：a.jpg')).toBeTruthy()
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:b.jpg')
@@ -47,14 +48,14 @@ describe('写真編集と再生', () => {
     vi.spyOn(performance, 'now').mockReturnValue(0)
     await upload()
     fireEvent.click(screen.getByText('▶ 再生する'))
-    act(() => callback(3000))
+    act(() => callback(1500))
     expect(screen.getByAltText('プレビュー：b.jpg')).toBeTruthy()
     fireEvent.click(screen.getByText('Ⅱ 一時停止'))
     expect(screen.getByText('▶ 再生する')).toBeTruthy()
     fireEvent.click(screen.getByText('▶ 再生する'))
-    act(() => callback(3000))
+    act(() => callback(1500))
     expect(screen.getByText('▶ 再生する')).toBeTruthy()
-    expect(screen.getByText('6.0 / 6.0 秒')).toBeTruthy()
+    expect(screen.getByText('3.0 / 3.0 秒')).toBeTruthy()
     fireEvent.click(screen.getByLabelText('先頭に戻る'))
     expect(screen.getByAltText('プレビュー：a.jpg')).toBeTruthy()
   })

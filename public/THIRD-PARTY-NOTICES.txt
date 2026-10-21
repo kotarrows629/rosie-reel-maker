@@ -1,0 +1,7 @@
+Mediabunny 1.62.0 (unmodified)
+Copyright (c) 2026-present, Vanilagy and contributors
+Licensed under Mozilla Public License 2.0; see mediabunny-LICENSE.txt.
+Source code for this exact npm version is available without charge:
+https://registry.npmjs.org/mediabunny/-/mediabunny-1.62.0.tgz
+Project: https://github.com/Vanilagy/mediabunny
+Rosie Reel Maker bundles this library to create MP4 files locally.
