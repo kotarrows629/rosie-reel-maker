@@ -1,3 +1,4 @@
+import ExportPanel from './ExportPanel'
 import { useEffect, useRef, useState } from 'react'
 import { movePhoto, photoAt, totalDuration, validDuration, type Photo } from './timeline'
 
@@ -11,6 +12,7 @@ export default function App() {
   const [photos, setPhotos] = useState<Photo[]>([])
   const [time, setTime] = useState(0)
   const [playing, setPlaying] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const urls = useRef(new Set<string>())
@@ -51,7 +53,7 @@ export default function App() {
       try {
         await new Promise<void>((resolve, reject) => { const image = new Image(); image.onload = () => resolve(); image.onerror = () => reject(); image.src = url })
         if (!mounted.current) { URL.revokeObjectURL(url); urls.current.delete(url); break }
-        added.push({ id: crypto.randomUUID(), name: file.name, url, duration: 3 })
+        added.push({ id: crypto.randomUUID(), name: file.name, url, duration: 1.5 })
       } catch { URL.revokeObjectURL(url); urls.current.delete(url); failed.push(file.name) }
     }
     if (!mounted.current) return
@@ -63,15 +65,16 @@ export default function App() {
     <section className="intro"><p className="eyebrow">YOUR PHOTOS, YOUR STORY</p><h1>日々のかけらを、<br/>ひとつのリールに。</h1><p>写真を選んで、順番と時間を整える。<br/>あなただけのストーリーをプレビュー。</p></section>
     <div className="workspace"><section className="preview-section" aria-label="リールのプレビュー"><div className="section-heading"><h2>プレビュー</h2><span>9:16</span></div>
       <div className="preview">{photos.length ? <img src={photos[active].url} alt={`プレビュー：${photos[active].name}`} /> : <div className="placeholder"><span>✳</span><strong>ここから、ストーリーを。</strong><p>写真を追加すると<br/>プレビューが表示されます</p></div>}<span className="preview-tag">ROSIE REEL</span>{photos.length > 0 && <span className="counter">{active + 1} / {photos.length}</span>}</div>
-      <div className="playback"><button aria-label="先頭に戻る" disabled={!photos.length || loading} onClick={() => { setPlaying(false); setTime(0) }}>↶</button><button className="primary" disabled={!photos.length || loading} onClick={() => { if (time >= total) setTime(0); setPlaying(!playing) }}>{playing ? 'Ⅱ 一時停止' : '▶ 再生する'}</button><span className="clock">{time.toFixed(1)} / {total.toFixed(1)} 秒</span></div>
+      <div className="playback"><button aria-label="先頭に戻る" disabled={!photos.length || loading || exporting} onClick={() => { setPlaying(false); setTime(0) }}>↶</button><button className="primary" disabled={!photos.length || loading || exporting} onClick={() => { if (time >= total) setTime(0); setPlaying(!playing) }}>{playing ? 'Ⅱ 一時停止' : '▶ 再生する'}</button><span className="clock">{time.toFixed(1)} / {total.toFixed(1)} 秒</span></div>
       <progress aria-label="再生の進み具合" max={total || 1} value={time}/><p className="hint">写真は画面いっぱいに中央で切り抜いて表示します。</p>
+      <ExportPanel photos={photos} blocked={loading} onBusy={value => { setExporting(value); if (value) setPlaying(false) }}/>
     </section>
     <section className="editor" aria-label="写真の編集"><div className="section-heading"><h2>写真をならべる</h2><span>{photos.length}枚 · {total.toFixed(1)}秒</span></div><p className="editor-help">上から順に再生します。矢印で順番を変えられます。</p>
-      <label className={`upload ${loading ? 'busy' : ''}`}><span>＋</span><strong>{loading ? '写真を読み込み中…' : '写真を追加する'}</strong><small>複数枚まとめて選べます</small><input aria-label="写真を追加する" type="file" accept="image/*" multiple disabled={loading} onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; if (files.length) void addFiles(files) }}/></label>
+      <fieldset disabled={exporting} className="editing-fields"><label className={`upload ${loading ? 'busy' : ''}`}><span>＋</span><strong>{loading ? '写真を読み込み中…' : '写真を追加する'}</strong><small>複数枚まとめて選べます</small><input aria-label="写真を追加する" type="file" accept="image/*" multiple disabled={loading} onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; if (files.length) void addFiles(files) }}/></label>
       <p role="status" className="status">{message}</p>
-      {!photos.length && <div className="empty"><span>01 — 02 — 03</span><p>お気に入りの写真を選びましょう。<br/>1枚あたり3秒から始められます。</p></div>}
-      <ol className="photo-list">{photos.map((photo, index) => <li key={photo.id} className={index === active ? 'selected' : ''}><div className="photo-top"><span className="number">{String(index + 1).padStart(2, '0')}</span><img src={photo.url} alt={photo.name}/><div className="photo-info"><p title={photo.name}>{photo.name}</p><DurationField photo={photo} onChange={duration => edit(photos.map(p => p.id === photo.id ? { ...p, duration } : p))}/></div></div><div className="photo-actions"><button disabled={index === 0 || loading} aria-label={`写真${index + 1}を前へ`} onClick={() => edit(movePhoto(photos, index, -1))}>↑ 前へ</button><button disabled={index === photos.length - 1 || loading} aria-label={`写真${index + 1}を後へ`} onClick={() => edit(movePhoto(photos, index, 1))}>↓ 後へ</button><button className="remove" disabled={loading} aria-label={`写真${index + 1}を削除`} onClick={() => { edit(photos.filter(p => p.id !== photo.id)); URL.revokeObjectURL(photo.url); urls.current.delete(photo.url) }}>削除</button></div></li>)}</ol>
+      {!photos.length && <div className="empty"><span>01 — 02 — 03</span><p>お気に入りの写真を選びましょう。<br/>1枚あたり1.5秒から始められます。</p></div>}
+      <ol className="photo-list">{photos.map((photo, index) => <li key={photo.id} className={index === active ? 'selected' : ''}><div className="photo-top"><span className="number">{String(index + 1).padStart(2, '0')}</span><img src={photo.url} alt={photo.name}/><div className="photo-info"><p title={photo.name}>{photo.name}</p><DurationField photo={photo} onChange={duration => edit(photos.map(p => p.id === photo.id ? { ...p, duration } : p))}/></div></div><div className="photo-actions"><button disabled={index === 0 || loading} aria-label={`写真${index + 1}を前へ`} onClick={() => edit(movePhoto(photos, index, -1))}>↑ 前へ</button><button disabled={index === photos.length - 1 || loading} aria-label={`写真${index + 1}を後へ`} onClick={() => edit(movePhoto(photos, index, 1))}>↓ 後へ</button><button className="remove" disabled={loading} aria-label={`写真${index + 1}を削除`} onClick={() => { edit(photos.filter(p => p.id !== photo.id)); URL.revokeObjectURL(photo.url); urls.current.delete(photo.url) }}>削除</button></div></li>)}</ol></fieldset>
       <div className="privacy"><strong>⌁ 写真は、この端末の中だけに。</strong><p>写真を外部へアップロードしません。ページを閉じる・再読み込みすると編集内容は消えます。</p></div>
-    </section></div><footer>まずは、プレビューから。<span>動画の保存・MP4書き出しは今後対応予定です。</span></footer>
+    </section></div><footer>まずは、プレビューから。<span>対応する端末でMP4の保存・共有ができます。</span></footer>
   </main>
 }
