@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import App from './App'
 import { movePhoto, photoAt, totalDuration, validDuration, type Photo } from './timeline'
+vi.mock('./PhotoPreview', () => ({ default: ({editPhoto}: {editPhoto?: Photo}) => <div role="img" aria-label={editPhoto ? `位置調整：${editPhoto.name}` : '再生プレビュー'}/> }))
 vi.mock('./ExportPanel', () => ({ default: () => null }))
 const photos: Photo[] = [1, 2, 3].map(n => ({ id: String(n), name: `${n}.jpg`, url: `blob:${n}`, duration: n }))
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
@@ -34,11 +35,11 @@ describe('写真編集と再生', () => {
     await upload()
     expect((screen.getAllByLabelText('表示秒数')[0] as HTMLInputElement).value).toBe('1.5')
     fireEvent.click(screen.getByLabelText('写真2を前へ'))
-    expect(screen.getByAltText('プレビュー：b.jpg')).toBeTruthy()
+    expect(screen.getAllByRole('listitem')[0].textContent).toContain('b.jpg')
     fireEvent.change(screen.getAllByLabelText('表示秒数')[0], { target: { value: '2' } })
-    expect(screen.getByText('2枚 · 3.5秒')).toBeTruthy()
+    expect(screen.getByText('2枚 · 3.2秒')).toBeTruthy()
     fireEvent.click(screen.getByLabelText('写真1を削除'))
-    expect(screen.getByAltText('プレビュー：a.jpg')).toBeTruthy()
+    expect(screen.getByRole('img', {name:'位置調整：a.jpg'})).toBeTruthy()
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:b.jpg')
   })
   it('経過時間で切り替わり、一時停止・再開・終了・先頭復帰できる', async () => {
@@ -49,15 +50,15 @@ describe('写真編集と再生', () => {
     await upload()
     fireEvent.click(screen.getByText('▶ 再生する'))
     act(() => callback(1500))
-    expect(screen.getByAltText('プレビュー：b.jpg')).toBeTruthy()
+    expect(screen.getByText('1.5 / 2.7 秒')).toBeTruthy()
     fireEvent.click(screen.getByText('Ⅱ 一時停止'))
     expect(screen.getByText('▶ 再生する')).toBeTruthy()
     fireEvent.click(screen.getByText('▶ 再生する'))
     act(() => callback(1500))
     expect(screen.getByText('▶ 再生する')).toBeTruthy()
-    expect(screen.getByText('3.0 / 3.0 秒')).toBeTruthy()
+    expect(screen.getByText('2.7 / 2.7 秒')).toBeTruthy()
     fireEvent.click(screen.getByLabelText('先頭に戻る'))
-    expect(screen.getByAltText('プレビュー：a.jpg')).toBeTruthy()
+    expect(screen.getByText('0.0 / 2.7 秒')).toBeTruthy()
   })
   it('読み込めない画像を拒否しURLを解放する', async () => {
     vi.stubGlobal('Image', class { onerror?: () => void; set src(_: string) { queueMicrotask(() => this.onerror?.()) } })

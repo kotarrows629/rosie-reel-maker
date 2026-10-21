@@ -16,32 +16,30 @@ vi.mock('mediabunny', () => ({
     async cancel() { state.canceled++; this.state = 'canceled' }
   },
 }))
-import { coverRect, exportVideo, framePlan, supportsExport } from './exportVideo'
-import type { Photo } from './timeline'
+import { exportVideo, supportsExport } from './exportVideo'
+import { timeline, type Photo } from './timeline'
 const photos: Photo[] = [{ id: 'b', name: 'b.jpg', url: 'blob:b', duration: .5 }, { id: 'a', name: 'a.jpg', url: 'blob:a', duration: 1 }]
 beforeEach(() => {
   state.frames = []; state.fail = false; state.canceled = 0; state.support = true; state.closed = 0
   vi.stubGlobal('isSecureContext', true); vi.stubGlobal('VideoEncoder', class {}); vi.stubGlobal('VideoFrame', class {})
   vi.stubGlobal('Image', class { src = ''; naturalWidth = 900; naturalHeight = 1600; async decode() {} })
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ fillRect: vi.fn(), drawImage: vi.fn() } as unknown as CanvasRenderingContext2D)
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ save: vi.fn(), restore: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn() } as unknown as CanvasRenderingContext2D)
 })
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
 describe('MP4 export', () => {
   it('assigns all 45 frames and preserves the edited order', async () => {
-    expect(framePlan(photos).map(p => [p.photo.id, p.start, p.end])).toEqual([['b', 0, 15], ['a', 15, 45]])
+    expect(timeline(photos).map(p => [p.photo.id, Math.round(p.start*30), Math.round(p.end*30)])).toEqual([['b', 0, 15], ['a', 15, 45]])
     const progress = vi.fn()
     const blob = await exportVideo(photos, 'hd', new AbortController().signal, progress)
     expect(blob.type).toBe('video/mp4'); expect(blob.size).toBe(20)
     expect(state.frames.length).toBe(45); expect(state.frames[44]).toBe(44 / 30)
     expect(progress).toHaveBeenLastCalledWith(100); expect(state.closed).toBe(1)
   })
-  it('uses central cover crop for landscape and portrait images', () => {
-    expect(coverRect(1600, 900, 900, 1600)).toEqual([expect.any(Number), 0, 1600 * 1600 / 900, 1600])
-    expect(coverRect(900, 1600, 900, 1600)).toEqual([0, 0, 900, 1600])
-  })
-  it('bounds the total frame count for decimal durations', () => {
-    const plan = framePlan(photos.map(p => ({ ...p, duration: 1.1 })))
-    expect(plan.map(p => [p.start, p.end])).toEqual([[0, 33], [33, 66]])
+  it('exports overlap duration rather than the sum of photo durations', async () => {
+    const items = photos.map(photo => ({ ...photo, duration: 1.5, transition: .3 }))
+    await exportVideo(items, 'light', new AbortController().signal, vi.fn())
+    expect(state.frames).toHaveLength(81)
+    expect(state.frames[80]).toBe(80 / 30)
   })
   it('does not attempt unsupported encoders or insecure contexts', async () => {
     state.support = false

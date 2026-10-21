@@ -1,24 +1,10 @@
+import { composeFrame, frameLayers, makeLayer } from './renderFrame'
 import { BufferTarget, CanvasSource, canEncodeVideo, Mp4OutputFormat, Output } from 'mediabunny'
-import { totalDuration, type Photo } from './timeline'
+import { layersAt, totalDuration, type Photo } from './timeline'
 
 export const FPS = 30
 export const sizes = { hd: { width: 1080, height: 1920, bitrate: 6_000_000 }, light: { width: 720, height: 1280, bitrate: 3_000_000 } }
 export type Quality = keyof typeof sizes
-export function framePlan(photos: Photo[]) {
-  let elapsed = 0
-  let previous = 0
-  return photos.map(photo => {
-    elapsed += photo.duration
-    const end = Math.round(elapsed * FPS)
-    const plan = { photo, start: previous, end }
-    previous = end
-    return plan
-  })
-}
-export function coverRect(iw: number, ih: number, w: number, h: number) {
-  const scale = Math.max(w / iw, h / ih)
-  return [(w - iw * scale) / 2, (h - ih * scale) / 2, iw * scale, ih * scale] as const
-}
 export async function supportsExport(quality: Quality) {
   if (!globalThis.isSecureContext || typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') return false
   try { return await canEncodeVideo('avc', { ...sizes[quality], frameRate: FPS }) } catch { return false }
@@ -49,23 +35,27 @@ export async function exportVideo(photos: Photo[], quality: Quality, signal: Abo
   try {
     output.addVideoTrack(source, { frameRate: FPS })
     await bounded(output.start(), signal)
-    const plan = framePlan(photos)
-    const frames = plan[plan.length - 1].end
-    for (const item of plan) {
-      if (signal.aborted) throw new Error('書き出しを中止しました。')
-      image = new Image(); image.src = item.photo.url
-      await bounded(image.decode(), signal)
-      context.fillStyle = '#000'; context.fillRect(0, 0, width, height)
-      context.drawImage(image, ...coverRect(image.naturalWidth, image.naturalHeight, width, height))
-      image.src = ''; image = undefined
-      for (let frame = item.start; frame < item.end; frame++) {
+    const frames = Math.round(totalDuration(photos) * FPS)
+    const cache = new Map<string, HTMLCanvasElement>()
+    try {
+      for (let frame = 0; frame < frames; frame++) {
         if (signal.aborted) throw new Error('書き出しを中止しました。')
-        await bounded(source.add(frame / FPS, 1 / FPS), signal)
+        const time = frame / FPS
+        const layers = layersAt(photos, time)
+        const ids = new Set(layers.map(layer => layer.photo.id))
+        for (const [id, layer] of cache) if (!ids.has(id)) { layer.width = layer.height = 1; cache.delete(id) }
+        for (const { photo } of layers) if (!cache.has(photo.id)) {
+          image = new Image(); image.src = photo.url
+          await bounded(image.decode(), signal)
+          cache.set(photo.id, makeLayer(image, photo, width, height))
+          image.src = ''; image = undefined
+        }
+        composeFrame(context, frameLayers(photos, time, cache), width, height)
+        await bounded(source.add(time, 1 / FPS), signal)
         progress(Math.min(99, Math.floor((frame + 1) / frames * 99)))
-        // Yield to touch events without depending on visible animation frames.
         if (frame % 10 === 0) await new Promise(resolve => setTimeout(resolve, 0))
       }
-    }
+    } finally { cache.forEach(layer => { layer.width = layer.height = 1 }); cache.clear() }
     source.close()
     await bounded(output.finalize(), signal)
     if (!target.buffer?.byteLength) throw new Error('動画を生成できませんでした。')
